@@ -87,6 +87,67 @@ Outputs are `dnbr.tif`, `rbr.tif`, `severity.tif`, `burnt_mask.tif` and a
 four-panel PNG. Every GeoTIFF carries the input scene's CRS and transform, so
 they drop straight into QGIS or ArcGIS Pro.
 
+## A real scene
+
+The figure above is synthetic. Here is the same pipeline on real Sentinel-2
+imagery, over the Arnhem Land plateau in Kakadu, Northern Territory.
+
+![Burnt area from real Sentinel-2 imagery, Arnhem Land plateau](outputs/burn_map_real_arnhem.png)
+
+| | |
+|---|---|
+| Pre-fire scene | `S2C_53LKF_20250530_0_L2A`, 30 May 2025, 1.75% cloud |
+| Post-fire scene | `S2A_53LKF_20250929_0_L2A`, 29 Sep 2025, 0.10% cloud |
+| Area of interest | 132.45 to 132.70 E, 13.30 to 13.10 S |
+| Grid | 1120 x 1366 at 20 m, EPSG:32753 (UTM zone 53S), 61,197 ha |
+| Runtime | 2.5 s on a laptop CPU, 1.53 megapixels |
+
+Result: **40,532 ha mapped as burnt**, about 66 percent of the scene, split
+16,703 ha patchy or light, 19,064 ha moderate and 7,052 ha intense.
+
+Reproduce it:
+
+```bash
+python scripts/fetch_sentinel2.py \
+    --bbox 132.45 -13.30 132.70 -13.10 \
+    --pre 2025-04-15 2025-06-10 --post 2025-08-20 2025-10-20 \
+    --out-dir data/arnhem
+
+burnmapper map \
+    --pre-b4  data/arnhem/pre_B4.tif  --pre-b8  data/arnhem/pre_B8.tif \
+    --pre-b12 data/arnhem/pre_B12.tif \
+    --post-b4 data/arnhem/post_B4.tif --post-b8 data/arnhem/post_B8.tif \
+    --post-b12 data/arnhem/post_B12.tif
+```
+
+`scripts/fetch_sentinel2.py` needs no account and no API key. It searches the
+Earth Search STAC API, picks the least cloudy scene in each window, requires
+both to come from the same MGRS tile so the grids match, and resamples the
+10 m bands down onto B12's native 20 m grid rather than upsampling B12.
+
+### What this result does and does not show
+
+**Internally consistent.** NBR stays inside [-1, 1], the scene median NBR falls
+from +0.213 before to +0.031 after, median dNBR is +0.156, class areas sum to
+the scene area exactly, and there are no no-data or NaN pixels.
+
+**The pre-fire image already contains burn scars.** Late May was the earliest
+clear scene available, and early dry-season burning was already under way by
+then. So this measures burning between 30 May and 29 Sep only, and misses the
+earliest fires of the season. The visible red patches in the pre-fire NBR panel
+are those earlier scars.
+
+**The 4,284 ha of "Regrowth" is real, not an artefact.** Those are areas burnt
+before 30 May that had greened up by late September, so their NBR rose and dNBR
+went negative. That is what the class is for.
+
+**No accuracy figure is claimed.** There is no reference data for this area and
+period here, so overall accuracy and kappa are not reported. Believing the
+66 percent figure requires validating it against the North Australia and
+Rangelands Fire Information service at https://firenorth.org.au, which publishes
+independent fire-scar mapping for this country. Doing that comparison is the
+obvious next step and has not been done.
+
 ## Method
 
 1. **NBR** = (NIR − SWIR2) / (NIR + SWIR2), from Sentinel-2 B8 and B12.
@@ -149,10 +210,11 @@ and demonstrating the accuracy machinery against known truth.
 
 **What it is not:** evidence that the method works on real imagery. Synthetic
 data cannot validate a remote sensing method, and published dNBR accuracies on
-real savanna sit meaningfully below what this generator produces. Every file
-and figure derived from a synthetic scene is labelled as such, including a
-`SYNTHETIC_INPUT=1` tag written into the GeoTIFF metadata, so a raster cannot
-be mistaken for a real result after it leaves this process.
+real savanna sit meaningfully below what this generator produces. For a real
+scene see [A real scene](#a-real-scene) above. Every file and figure derived
+from a synthetic scene is labelled as such, including a `SYNTHETIC_INPUT=1` tag
+written into the GeoTIFF metadata, so a raster cannot be mistaken for a real
+result after it leaves this process.
 
 ## Tests
 
