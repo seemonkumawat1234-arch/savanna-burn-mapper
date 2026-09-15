@@ -141,12 +141,113 @@ are those earlier scars.
 before 30 May that had greened up by late September, so their NBR rose and dNBR
 went negative. That is what the class is for.
 
-**No accuracy figure is claimed.** There is no reference data for this area and
-period here, so overall accuracy and kappa are not reported. Believing the
-66 percent figure requires validating it against the North Australia and
-Rangelands Fire Information service at https://firenorth.org.au, which publishes
-independent fire-scar mapping for this country. Doing that comparison is the
-obvious next step and has not been done.
+**The 66 percent figure is too high**, and the next section shows by how much.
+It was validated against NAFI fire-scar mapping, which put the matched-window
+figure at 28,421 ha rather than 42,818 ha. See
+[Validation against NAFI](#validation-against-nafi).
+
+### Validation against NAFI
+
+The 66 percent figure above was checked against independent fire-scar mapping,
+and it turned out to be too high. This is what the check found and what it
+changed.
+
+NAFI, the North Australia and Rangelands Fire Information service, is run by
+Charles Darwin University and publishes fire-scar mapping for most of northern
+Australia. Its `fshkak_2025` layer is high-resolution Sentinel-2 derived
+mapping for Kakadu, with pixel values giving the **month of burn**, so it can
+be restricted to the same window as the image pair. That matters: comparing a
+two-date dNBR map against a whole year of NAFI measures the difference in
+observation period more than anything about the method.
+
+NAFI over this area in 2025, by month:
+
+| Apr | May | Jun | Jul | Aug | Sep | Oct | unburnt |
+|---|---|---|---|---|---|---|---|
+| 441 ha | 8,593 ha | 8,537 ha | 13,995 ha | 4,545 ha | 1,344 ha | 6 ha | 23,736 ha |
+
+The matched window, June to September, is **28,421 ha**. The default settings
+mapped **42,818 ha**, about 51 percent too much, at kappa 0.482.
+
+**The cause is grass curing, not fire.** Comparing dNBR where NAFI says the
+country burnt against where it says the country never burnt in 2025 at all:
+
+| | p25 | median | p75 | p95 |
+|---|---|---|---|---|
+| NAFI burnt, Jun to Sep | +0.167 | **+0.226** | +0.305 | +0.447 |
+| NAFI never burnt, 2025 | +0.045 | **+0.102** | +0.178 | +0.295 |
+
+Unburnt savanna has a median dNBR of **+0.102** across this four-month window,
+which is *above* the package's default burnt threshold of 0.08. Grass cures and
+dries through the dry season, NBR falls, and a threshold set below the median
+of unburnt country classifies much of the landscape as burnt. The two
+distributions overlap heavily, so no threshold separates them cleanly.
+
+Sweeping the threshold against NAFI:
+
+| dNBR threshold | mapped | OA | kappa | recall | precision |
+|---|---|---|---|---|---|
+| 0.08 (default) | 42,818 ha | 73.4% | 0.482 | 96.7% | 64.2% |
+| 0.10 | 39,829 ha | 75.9% | 0.527 | 94.1% | 67.1% |
+| 0.12 | 36,717 ha | 77.3% | 0.552 | 90.1% | 69.8% |
+| **0.15** | **31,658 ha** | **77.5%** | **0.552** | 81.5% | 73.2% |
+| 0.20 | 22,397 ha | 73.9% | 0.468 | 61.3% | 77.8% |
+| 0.30 | 8,622 ha | 63.7% | 0.236 | 26.1% | 86.1% |
+
+Adding the post-fire NBR ceiling at 0.20 on top of a 0.15 threshold gives the
+best agreement found:
+
+![Calibrated burnt-area map, Arnhem Land plateau](outputs/burn_map_real_arnhem_calibrated.png)
+
+```bash
+burnmapper map --threshold 0.15 --max-nbr-post 0.20 \
+    --pre-b4 ... --post-b12 ...
+```
+
+| | default | calibrated |
+|---|---|---|
+| Mapped burnt | 42,818 ha | **30,070 ha** |
+| NAFI reference | 28,421 ha | 28,421 ha |
+| Difference | +51% | **+5.8%** |
+| Overall agreement | 73.4% | **78.0%** |
+| Cohen's kappa | 0.482 | **0.560** |
+| Recall | 96.7% | 79.2% |
+| Precision | 64.2% | 74.9% |
+| Commission | 15,823 ha | 7,548 ha |
+| Omission | 1,426 ha | 5,900 ha |
+
+Reproduce the comparison:
+
+```bash
+python scripts/compare_nafi.py \
+    --burnt outputs/burnt_mask.tif \
+    --layer public__fshkak_2025 \
+    --bbox 132.45 -13.30 132.70 -13.10 \
+    --months 6 7 8 9
+```
+
+### Reading this honestly
+
+**Kappa 0.56 is moderate agreement, not good agreement.** It is a realistic
+number for two independent burnt-area products over savanna, and considerably
+more informative than the unvalidated 66 percent it replaces.
+
+**NAFI is not truth.** It is a mapped product with its own omission and
+commission errors, and small cool early-season fires are exactly what satellite
+mapping misses most. So this measures agreement between two estimates. Where
+they disagree, either may be wrong.
+
+**The defaults have not been changed.** 0.15 beats 0.08 badly here, but that is
+one scene, one region and one four-month window. A threshold tuned on a single
+comparison and then shipped as a default is how a package acquires a hidden
+regional bias. The finding is documented, the calibrated values are the ones to
+pass for dry-season Top End work, and the right fix is more comparisons across
+regions and window lengths.
+
+**A shorter window would need a lower threshold.** The curing signal
+accumulates with time between images. Four months of drying is what pushes
+unburnt dNBR to +0.102. A three-week window would barely move it, and 0.15
+would then miss real fires.
 
 ## Method
 
