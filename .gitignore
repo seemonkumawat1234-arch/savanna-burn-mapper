@@ -9,6 +9,7 @@ venv/
 
 # Generated outputs. The one figure the README shows is committed by hand.
 outputs/*
+outputs_real/
 !outputs/burn_map_demo.png
 !outputs/burn_map_real_arnhem.png
 
