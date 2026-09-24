@@ -1,5 +1,9 @@
 # savanna-burn-mapper
 
+> **Built with AI assistance.** The code in this repository was written with an AI
+> coding assistant, not hand-written from scratch. It is published as a working tool
+> and a learning resource, not as a portfolio piece claiming sole authorship.
+
 Burnt-area and burn-severity mapping from Sentinel-2 imagery using dNBR, with
 severity breakpoints adjusted for northern Australian savanna.
 
